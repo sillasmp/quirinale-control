@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Quirinale Control 2.0</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #121212; color: #f0f0f0; margin: 0; padding: 20px; }
+    h1 { color: gold; text-align: center; }
+    .container { max-width: 500px; margin: auto; }
+    input, select, button { width: 100%; margin: 10px 0; padding: 10px; border-radius: 5px; border: none; }
+    button { background: #25D366; color: white; font-weight: bold; cursor: pointer; }
+    .summary, .chart-container { background: #1e1e1e; padding: 15px; border-radius: 10px; margin-top: 20px; }
+    canvas { background: #fff; border-radius: 8px; }
+    a#whatsappLink { display: block; background: #25D366; text-align: center; padding: 10px; border-radius: 5px; color: white; text-decoration: none; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Quirinale Control</h1>
+  <div class="container">
+    <select id="type">
+      <option value="Produto">Produto</option>
+      <option value="Conta">Conta</option>
+      <option value="Funcionario">Funcionário</option>
+    </select>
+    <input type="text" id="description" placeholder="Descrição"/>
+    <input type="number" id="amount" placeholder="Valor"/>
+    <button onclick="addExpense()">Lançar Gasto</button>
+    <button onclick="getSummary()">Ver Resumo do Dia</button>
+    <button onclick="getWeeklyChart()">Ver Gráfico da Semana</button>
+    <div class="summary" id="summary"></div>
+    <a id="whatsappLink" target="_blank">Enviar para WhatsApp</a>
+    <div class="chart-container">
+      <canvas id="weeklyChart" width="400" height="200"></canvas>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const today = new Date().toISOString().split('T')[0];
+    const seuNumero = '5512991274666';
+
+    function addExpense() {
+      const type = document.getElementById('type').value;
+      const description = document.getElementById('description').value;
+      const amount = parseFloat(document.getElementById('amount').value);
+      fetch('http://localhost:3000/api/expenses', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ type, description, amount, date: today })
+      }).then(res => res.json()).then(data => {
+        alert('Gasto registrado!');
+        document.getElementById('description').value = '';
+        document.getElementById('amount').value = '';
+      });
+    }
+
+    function getSummary() {
+      fetch(`http://localhost:3000/api/summary/${today}`)
+      .then(res => res.json())
+      .then(data => {
+        const total = (data.Produto || 0) + (data.Conta || 0) + (data.Funcionario || 0);
+        const summaryText = `
+          📅 *Despesas do dia - ${today}*<br>
+          📦 Produtos: R$ ${data.Produto?.toFixed(2) || '0.00'}<br>
+          💡 Contas: R$ ${data.Conta?.toFixed(2) || '0.00'}<br>
+          👨‍🍳 Funcionários: R$ ${data.Funcionario?.toFixed(2) || '0.00'}<br>
+          💰 Total: R$ ${total.toFixed(2)}
+        `;
+        document.getElementById('summary').innerHTML = summaryText.replace(/<br>/g, '<br>');
+        const msg = `📅 *Despesas do dia - ${today}*\n📦 Produtos: R$ ${data.Produto?.toFixed(2) || '0.00'}\n💡 Contas: R$ ${data.Conta?.toFixed(2) || '0.00'}\n👨‍🍳 Funcionários: R$ ${data.Funcionario?.toFixed(2) || '0.00'}\n💰 Total: R$ ${total.toFixed(2)}`;
+        document.getElementById('whatsappLink').href = `https://wa.me/${seuNumero}?text=${encodeURIComponent(msg)}`;
+      });
+    }
+
+    function getWeeklyChart() {
+      fetch('http://localhost:3000/api/weekly-summary')
+        .then(res => res.json())
+        .then(data => {
+          const ctx = document.getElementById('weeklyChart').getContext('2d');
+          const labels = data.map(item => item.day);
+          const values = data.map(item => item.total);
+
+          if (window.weeklyChartInstance) {
+            window.weeklyChartInstance.destroy();
+          }
+
+          window.weeklyChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: labels,
+              datasets: [{
+                label: 'Gastos por Dia',
+                data: values,
+                backgroundColor: '#25D366'
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { display: false }
+              }
+            }
+          });
+        });
+    }
+  </script>
+</body>
+</html>
